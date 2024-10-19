@@ -42,6 +42,9 @@ static void HTTPGetRequestFunction(DataChunk &args, ExpressionState &state, Vect
         duckdb_httplib_openssl::Client client(domain.c_str());
         client.set_read_timeout(10, 0);  // 10 seconds
 
+        // Follow redirects, limit to 10 by default
+        client.set_follow_location(true);
+
         // Make the GET request
         auto res = client.Get(path.c_str());
         if (res) {
