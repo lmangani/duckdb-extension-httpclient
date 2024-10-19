@@ -20,18 +20,80 @@ static void HTTPGetRequestFunction(DataChunk &args, ExpressionState &state, Vect
 
     UnaryExecutor::Execute<string_t, string_t>(args.data[0], result, args.size(), [&](string_t input) {
         std::string url = input.GetString();
-        duckdb_httplib_openssl::Client client(url);
 
-        auto res = client.Get("/");
+        // Parse the URL to extract the domain and path
+        std::string scheme, domain, path;
+        size_t pos = url.find("://");
+        if (pos != std::string::npos) {
+            scheme = url.substr(0, pos);
+            url.erase(0, pos + 3);
+        }
+
+        pos = url.find("/");
+        if (pos != std::string::npos) {
+            domain = url.substr(0, pos);
+            path = url.substr(pos);
+        } else {
+            domain = url;
+            path = "/";
+        }
+
+        // Create client and set a reasonable timeout (e.g., 10 seconds)
+        duckdb_httplib_openssl::Client client(domain.c_str());
+        client.set_read_timeout(10, 0);  // 10 seconds
+
+        // Make the GET request
+        auto res = client.Get(path.c_str());
         if (res) {
             if (res->status == 200) {
                 return StringVector::AddString(result, res->body);
             } else {
-                throw std::runtime_error("HTTP error: " + std::to_string(res->status));
+                throw std::runtime_error("HTTP error: " + std::to_string(res->status) + " - " + res->reason);
             }
         } else {
-            auto err = res.error();
-            throw std::runtime_error("HTTP error: " + duckdb_httplib_openssl::to_string(err));  // Fully qualify to_string
+            // Handle the error case
+            std::string err_message = "HTTP request failed. ";
+
+            // Convert httplib error codes to a descriptive message
+            switch (res.error()) {
+                case duckdb_httplib_openssl::Error::Connection:
+                    err_message += "Connection error.";
+                    break;
+                case duckdb_httplib_openssl::Error::BindIPAddress:
+                    err_message += "Failed to bind IP address.";
+                    break;
+                case duckdb_httplib_openssl::Error::Read:
+                    err_message += "Error reading response.";
+                    break;
+                case duckdb_httplib_openssl::Error::Write:
+                    err_message += "Error writing request.";
+                    break;
+                case duckdb_httplib_openssl::Error::ExceedRedirectCount:
+                    err_message += "Too many redirects.";
+                    break;
+                case duckdb_httplib_openssl::Error::Canceled:
+                    err_message += "Request was canceled.";
+                    break;
+                case duckdb_httplib_openssl::Error::SSLConnection:
+                    err_message += "SSL connection failed.";
+                    break;
+                case duckdb_httplib_openssl::Error::SSLLoadingCerts:
+                    err_message += "Failed to load SSL certificates.";
+                    break;
+                case duckdb_httplib_openssl::Error::SSLServerVerification:
+                    err_message += "SSL server verification failed.";
+                    break;
+                case duckdb_httplib_openssl::Error::UnsupportedMultipartBoundaryChars:
+                    err_message += "Unsupported characters in multipart boundary.";
+                    break;
+                case duckdb_httplib_openssl::Error::Compression:
+                    err_message += "Error during compression.";
+                    break;
+                default:
+                    err_message += "Unknown error.";
+                    break;
+            }
+            throw std::runtime_error(err_message);
         }
     });
 }
@@ -47,11 +109,30 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
         url_vector, headers_vector, body_vector, result, args.size(),
         [&](string_t url, string_t headers, string_t body) {
             std::string url_str = url.GetString();
-            duckdb_httplib_openssl::Client client(url_str);
 
-	    // HeaderMap header_map = {};
+            // Parse the URL to extract the domain and path
+            std::string scheme, domain, path;
+            size_t pos = url_str.find("://");
+            if (pos != std::string::npos) {
+                scheme = url_str.substr(0, pos);
+                url_str.erase(0, pos + 3);
+            }
 
-            duckdb_httplib_openssl::Headers header_map;  // Fully qualified httplib::Headers
+            pos = url_str.find("/");
+            if (pos != std::string::npos) {
+                domain = url_str.substr(0, pos);
+                path = url_str.substr(pos);
+            } else {
+                domain = url_str;
+                path = "/";
+            }
+
+            // Create the client and set a timeout (e.g., 10 seconds)
+            duckdb_httplib_openssl::Client client(domain.c_str());
+            client.set_read_timeout(10, 0);  // 10 seconds
+
+            // Prepare headers
+            duckdb_httplib_openssl::Headers header_map;
             std::istringstream header_stream(headers.GetString());
             std::string header;
             while (std::getline(header_stream, header)) {
@@ -68,19 +149,62 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
                 }
             }
 
-            auto res = client.Post("/", header_map, body.GetString(), "application/json");
+            // Make the POST request with headers and body
+            auto res = client.Post(path.c_str(), header_map, body.GetString(), "application/json");
             if (res) {
                 if (res->status == 200) {
                     return StringVector::AddString(result, res->body);
                 } else {
-                    throw std::runtime_error("HTTP error: " + std::to_string(res->status));
+                    throw std::runtime_error("HTTP error: " + std::to_string(res->status) + " - " + res->reason);
                 }
             } else {
-                auto err = res.error();
-                throw std::runtime_error("HTTP error: " + duckdb_httplib_openssl::to_string(err));  // Fully qualify to_string
+                // Handle the error case
+                std::string err_message = "HTTP POST request failed. ";
+
+                // Convert httplib error codes to a descriptive message
+                switch (res.error()) {
+                    case duckdb_httplib_openssl::Error::Connection:
+                        err_message += "Connection error.";
+                        break;
+                    case duckdb_httplib_openssl::Error::BindIPAddress:
+                        err_message += "Failed to bind IP address.";
+                        break;
+                    case duckdb_httplib_openssl::Error::Read:
+                        err_message += "Error reading response.";
+                        break;
+                    case duckdb_httplib_openssl::Error::Write:
+                        err_message += "Error writing request.";
+                        break;
+                    case duckdb_httplib_openssl::Error::ExceedRedirectCount:
+                        err_message += "Too many redirects.";
+                        break;
+                    case duckdb_httplib_openssl::Error::Canceled:
+                        err_message += "Request was canceled.";
+                        break;
+                    case duckdb_httplib_openssl::Error::SSLConnection:
+                        err_message += "SSL connection failed.";
+                        break;
+                    case duckdb_httplib_openssl::Error::SSLLoadingCerts:
+                        err_message += "Failed to load SSL certificates.";
+                        break;
+                    case duckdb_httplib_openssl::Error::SSLServerVerification:
+                        err_message += "SSL server verification failed.";
+                        break;
+                    case duckdb_httplib_openssl::Error::UnsupportedMultipartBoundaryChars:
+                        err_message += "Unsupported characters in multipart boundary.";
+                        break;
+                    case duckdb_httplib_openssl::Error::Compression:
+                        err_message += "Error during compression.";
+                        break;
+                    default:
+                        err_message += "Unknown error.";
+                        break;
+                }
+                throw std::runtime_error(err_message);
             }
         });
 }
+
 
 static void LoadInternal(DatabaseInstance &instance) {
     ScalarFunctionSet http_get("http_get");
