@@ -7,4 +7,4 @@ duckdb_extension_load(http_client
 )
 
 # Any extra extensions that should be built
-# duckdb_extension_load(httpfs)
+duckdb_extension_load(json)
