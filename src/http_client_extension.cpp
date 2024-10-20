@@ -105,12 +105,13 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
     D_ASSERT(args.data.size() == 3);
 
     auto &url_vector = args.data[0];
-    auto &headers_vector = args.data[1];
-    auto &body_vector = args.data[2];
+    auto &headers_vector = args.data[1];  // Already passed as a serialized string
+    auto &body_vector = args.data[2];     // Already passed as a JSON string
 
+    // Use TernaryExecutor instead of UnaryExecutor
     TernaryExecutor::Execute<string_t, string_t, string_t, string_t>(
         url_vector, headers_vector, body_vector, result, args.size(),
-        [&](string_t url, string_t headers, string_t body) {
+        [&](string_t url, string_t headers_varchar, string_t body_varchar) {
             std::string url_str = url.GetString();
 
             // Parse the URL to extract the domain and path
@@ -130,20 +131,23 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
                 path = "/";
             }
 
-            // Create the client and set a timeout (e.g., 10 seconds)
+            // Create the client and set a timeout
             duckdb_httplib_openssl::Client client(domain.c_str());
             client.set_read_timeout(10, 0);  // 10 seconds
 
-            // Prepare headers
+            // Follow redirects for POST as well
+            client.set_follow_location(true);
+
+            // Deserialize the header string into a header map
             duckdb_httplib_openssl::Headers header_map;
-            std::istringstream header_stream(headers.GetString());
+            std::istringstream header_stream(headers_varchar.GetString());
             std::string header;
             while (std::getline(header_stream, header)) {
                 size_t colon_pos = header.find(':');
                 if (colon_pos != std::string::npos) {
                     std::string key = header.substr(0, colon_pos);
                     std::string value = header.substr(colon_pos + 1);
-                    // Trim leading and trailing whitespace
+                    // Trim leading/trailing whitespace
                     key.erase(0, key.find_first_not_of(" \t"));
                     key.erase(key.find_last_not_of(" \t") + 1);
                     value.erase(0, value.find_first_not_of(" \t"));
@@ -152,8 +156,11 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
                 }
             }
 
-            // Make the POST request with headers and body
-            auto res = client.Post(path.c_str(), header_map, body.GetString(), "application/json");
+            // Prepare the POST body (it is passed as a string)
+            std::string body_str = body_varchar.GetString();
+
+            // Make the POST request
+            auto res = client.Post(path.c_str(), header_map, body_str, "application/json");
             if (res) {
                 if (res->status == 200) {
                     return StringVector::AddString(result, res->body);
@@ -163,8 +170,6 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
             } else {
                 // Handle the error case
                 std::string err_message = "HTTP POST request failed. ";
-
-                // Convert httplib error codes to a descriptive message
                 switch (res.error()) {
                     case duckdb_httplib_openssl::Error::Connection:
                         err_message += "Connection error.";
