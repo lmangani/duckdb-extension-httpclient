@@ -1,6 +1,9 @@
-# DuckDB HTTP Client Extension
+<img src="https://github.com/user-attachments/assets/46a5c546-7e9b-42c7-87f4-bc8defe674e0" width=250 />
 
-Experimental HTTP Client Community Extension
+# DuckDB HTTP Client Extension
+This very experimental extension spawns an HTTP Client from within DuckDB resolving GET/POST requests.<br>
+
+> Experimental: USE AT YOUR OWN RISK!
 
 ### GET
 ```sql
