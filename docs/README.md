@@ -9,9 +9,74 @@ This very experimental extension spawns an HTTP Client from within DuckDB resolv
 - `http_get(url)`
 - `http_post(url, headers, params)`
 
+### Examples
 #### GET
 ```sql
+D WITH __input AS (
+      SELECT
+        http_get(
+          'https://httpbin.org/delay/0'
+       ) AS data
+    ),
+    __features AS (
+      SELECT
+        unnest( from_json((data::JSON)->'headers', '{"Host": "VARCHAR"}') )
+        AS features
+      FROM
+        __input
+    )
+    SELECT
+      __features.Host AS host,
+    FROM
+      __features
+    ;
+┌─────────────┐
+│    host     │
+│   varchar   │
+├─────────────┤
+│ httpbin.org │
+└─────────────┘
+```
+
+#### POST
+```sql
+WITH __input AS (
+      SELECT
+        http_post(
+          'https://httpbin.org/delay/0',
+          headers => MAP {
+            'accept': 'application/json',
+          }::VARCHAR,
+          params => MAP {}::VARCHAR
+       ) AS data
+    ),
+    __features AS (
+      SELECT
+        unnest( from_json((data::JSON)->'headers', '{"Host": "VARCHAR"}') )
+        AS features
+      FROM
+        __input
+    )
+    SELECT
+      __features.Host AS host,
+    FROM
+      __features
+    ;
+┌─────────────┐
+│    host     │
+│   varchar   │
+├─────────────┤
+│ httpbin.org │
+└─────────────┘
+```
+
+#### Full Example w/ spatial data
+This is the original example by @ahuarte47 inspiring this community extension.
+
+```sql
 D SET autoinstall_known_extensions=1; SET autoload_known_extensions=1;
+D LOAD json; LOAD httpfs; LOAD spatial;
+
 D WITH __input AS (
     SELECT
       http_get(
@@ -56,23 +121,3 @@ D WITH __input AS (
 │ 10 rows                                                                                                                        4 columns │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-#### POST (WIP)
-```sql
-D SELECT
-      http_post(
-        'https://some.server',
-        headers => MAP {
-          'Content-Type': 'application/json',
-        }::VARCHAR,
-        params => MAP {
-          'limit': 1
-        }::VARCHAR
-     )
-  AS data;
-```
-
-
-#### Acknowledgements
-
-Implementation inspired by [https://github.com/duckdb/duckdb/pull/11548] PR by @ahuarte47
