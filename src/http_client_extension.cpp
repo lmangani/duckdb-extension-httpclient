@@ -42,7 +42,7 @@ static void HTTPGetRequestFunction(DataChunk &args, ExpressionState &state, Vect
         duckdb_httplib_openssl::Client client(domain.c_str());
         client.set_read_timeout(10, 0);  // 10 seconds
 
-        // Follow redirects, limit to 10 by default
+        // Follow redirects
         client.set_follow_location(true);
 
         // Make the GET request
@@ -134,6 +134,8 @@ static void HTTPPostRequestFunction(DataChunk &args, ExpressionState &state, Vec
             // Create the client and set a timeout
             duckdb_httplib_openssl::Client client(domain.c_str());
             client.set_read_timeout(10, 0);  // 10 seconds
+            // Follow redirects
+            client.set_follow_location(true);
 
             // Follow redirects for POST as well
             client.set_follow_location(true);
