@@ -5,7 +5,11 @@ This very experimental extension spawns an HTTP Client from within DuckDB resolv
 
 > Experimental: USE AT YOUR OWN RISK!
 
-### GET
+### Functions
+- `http_get(url)`
+- `http_post(url, headers, params)`
+
+#### GET
 ```sql
 D SET autoinstall_known_extensions=1; SET autoload_known_extensions=1;
 D WITH __input AS (
@@ -53,7 +57,7 @@ D WITH __input AS (
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### POST (WIP)
+#### POST (WIP)
 ```sql
 D SELECT
       http_post(
@@ -68,3 +72,7 @@ D SELECT
   AS data;
 ```
 
+
+#### Acknowledgements
+
+Implementation inspired by [https://github.com/duckdb/duckdb/pull/11548] PR by @ahuarte47
