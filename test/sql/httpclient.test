@@ -1,0 +1,64 @@
+# name: test/sql/httpclient.test
+# description: test httpclient extension
+# group: [httpclient]
+
+# Before we load the extension, this will fail
+statement error
+SELECT http_get('Sam');
+----
+Catalog Error: Scalar Function with name http_get does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require http_client
+
+require json
+
+# Confirm the GET extension works
+query I
+WITH __input AS (
+      SELECT
+        http_get(
+          'https://httpbin.org/delay/0'
+       ) AS data
+    ),
+    __features AS (
+      SELECT
+        unnest( from_json((data::JSON)->'headers', '{"Host": "VARCHAR"}') )
+        AS features
+      FROM
+        __input
+    )
+    SELECT
+      __features.Host AS host,
+    FROM
+      __features
+    ;
+----
+httpbin.org
+
+# Confirm the POST extension works
+query I
+WITH __input AS (
+      SELECT
+        http_post(
+          'https://httpbin.org/delay/0',
+          headers => MAP {
+            'accept': 'application/json',
+          }::VARCHAR,
+          params => MAP {}::VARCHAR
+       ) AS data
+    ),
+    __features AS (
+      SELECT
+        unnest( from_json((data::JSON)->'headers', '{"Host": "VARCHAR"}') )
+        AS features
+      FROM
+        __input
+    )
+    SELECT
+      __features.Host AS host,
+    FROM
+      __features
+    ;
+----
+httpbin.org
