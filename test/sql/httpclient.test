@@ -1,6 +1,6 @@
 # name: test/sql/httpclient.test
-# description: test httpclient extension
-# group: [httpclient]
+# description: test http_client extension
+# group: [http_client]
 
 # Before we load the extension, this will fail
 statement error
